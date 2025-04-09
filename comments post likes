@@ -1,3 +1,45 @@
+************ in Student.php Model ***********
+ // likes on post
+    public function likedPosts()
+{
+    return $this->hasMany(PostLike::class);
+}
+
+
+
+
+******** PostLike ************
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class PostLike extends Model
+{
+    protected $table = 'post_likes';
+
+    protected $fillable = [
+        'student_id',
+        'post_id',
+    ];
+
+    // Relationship with Post
+    public function post()
+    {
+        return $this->belongsTo(Post::class);
+    }
+
+    // Relationship with Student
+    public function student()
+    {
+        return $this->belongsTo(Student::class);
+    }
+}
+
+
+
+
 *****************post***************
 <?php
 
@@ -32,6 +74,11 @@ class Post extends Model
     {
         return $this->hasMany(Comment::class); 
     }
+
+  public function likes()
+{
+    return $this->hasMany(PostLike::class);
+}
 }
 
 
@@ -98,263 +145,275 @@ use App\Models\AllComment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Auth; 
-use Illuminate\Support\Facades\Validator; 
-
+use Illuminate\Support\Facades\Validator;  
+use Illuminate\Support\Facades\DB;  
 class CommentController extends Controller
 {
     
-   
-        // store comment
-      public function storeComment(Request $request)
+    
+
+    
+    
+     // store comment
+          public function storeComment(Request $request)
+            {
+        
+         $validator = Validator::make($request->all(), [
+        'student_id' => 'required',
+        'post_id' => 'required',
+        'comment_text' => 'required',
+        ]); 
+     
+        if ($validator->fails()) {
+            return response()->json([ 
+                'success' => false,
+                'message' => $validator->errors(),
+            ], 400);
+        }
+        
+        $comment = AllComment::create([
+                'post_id' => $request->post_id,
+                'student_id' => $request->student_id,
+                'commenter_name' => $request->commenter_name,
+                'comment_text' => $request->comment_text,
+                'parent_id' => $request->parent_id, // null if main comment
+                'likes' => 0,
+            ]);
+    
+            return response()->json([
+                'success' => true,
+                'message' => 'Comment added successfully',
+                'data' => $comment,
+            ], 200);
+        }   
+    
+        
+        // store reply on commenst
+        public function ReplyOnComment(Request $request)
         {
-    
-     $validator = Validator::make($request->all(), [
-    'student_id' => 'required',
-    'post_id' => 'required',
-    'comment_text' => 'required',
-    ]); 
- 
-    if ($validator->fails()) {
-        return response()->json([ 
-            'success' => false,
-            'message' => $validator->errors(),
-        ], 400);
-    }
-    
-    $comment = AllComment::create([
-            'post_id' => $request->post_id,
-            'student_id' => $request->student_id,
-            'commenter_name' => $request->commenter_name,
-            'comment_text' => $request->comment_text,
-            'parent_id' => $request->parent_id, // null if main comment
-            'likes' => 0,
+        
+         $validator = Validator::make($request->all(), [
+        'student_id' => 'required',
+        'post_id' => 'required',
+        'parent_id' => 'required',
+        'comment_text' => 'required',
         ]);
-
-        return response()->json([
-            'message' => 'Comment added successfully',
-            'data' => $comment,
-        ], 200);
-    }   
+     
+        if ($validator->fails()) {
+            return response()->json([ 
+                'success' => false,
+                'message' => $validator->errors(),
+            ], 400);
+        }
+        
+     $comment = AllComment::create([
+                'post_id' => $request->post_id,
+                'student_id' => $request->student_id,
+                'commenter_name' => $request->commenter_name,
+                'comment_text' => $request->comment_text,
+                'parent_id' => $request->parent_id, // null if main comment
+                'likes' => 0,
+            ]);
     
+            return response()->json([
+                'message' => 'Comment added successfully',
+                'data' => $comment,
+            ], 200);
+        }   
     
-    // store reply on commenst
-    public function ReplyOnComment(Request $request)
-    {
-    
-     $validator = Validator::make($request->all(), [
-    'student_id' => 'required',
-    ]);
- 
-    if ($validator->fails()) {
-        return response()->json([ 
-            'success' => false,
-            'message' => $validator->errors(),
-        ], 400);
-    }
-    
- $comment = AllComment::create([
-            'post_id' => $request->post_id,
-            'student_id' => $request->student_id,
-            'commenter_name' => $request->commenter_name,
-            'comment_text' => $request->comment_text,
-            'parent_id' => $request->parent_id, // null if main comment
-            'likes' => 0,
-        ]);
-
-        return response()->json([
-            'message' => 'Comment added successfully',
-            'data' => $comment,
-        ], 200);
-    }   
-
-    
-    // display specific post comments
-    public function displayComments($postId)
-        {
-    // Fetch all main comments for a post and their replies
-    $comments = AllComment::where('post_id', $postId)
-        ->whereNull('parent_id') // Fetch only main comments
-        ->with('replies') // Eager load replies
-        ->get();
-
-     return response()->json([
-            'message' => 'fecthed successfully', 
-            'data' => $comments,
-        ], 200);
-}
-
-  // Fetch all main comments with their replies for all posts
-    public function displayAllComments()
-    {
-      
-        $comments = AllComment::whereNull('parent_id')
-            ->with('replies')
+        
+        // display specific post comments
+        public function displayComments($postId)
+            {
+        // Fetch all main comments for a post and their replies
+        $comments = AllComment::where('post_id', $postId)
+            ->whereNull('parent_id') // Fetch only main comments
+            ->with('replies') // Eager load replies
             ->get();
     
+         return response()->json([
+                'message' => 'fecthed successfully', 
+                'data' => $comments,
+            ], 200);
+    }
+    
+      // Fetch all main comments with their replies for all posts
+        public function displayAllComments()
+        {
+          
+            $comments = AllComment::whereNull('parent_id')
+                ->with('replies')
+                ->get();
+        
+            return response()->json([
+                'message' => 'Fetched successfully',
+                'data' => $comments,
+            ], 200);
+        }
+    
+    
+ 
+
+    
+    public function storePost(Request $request)
+    {
+        // Validate the input data
+        $validator = Validator::make($request->all(), [
+            'post_description' => 'required|string',
+            'student_id' => 'required|exists:students,id', 
+            'post_image' => 'nullable|mimes:jpg,jpeg,png,webp,gif,bmp,tiff,svg|max:2048', // Allow multiple image formats with max 2MB size
+    
+        ]);
+    
+        if ($validator->fails()) {
+            return response()->json([ 
+                'success' => false, 
+                'message' => $validator->errors(),
+            ], 400);
+        }
+    
+        // Find the student by student_id
+        $student = Student::find($request->student_id);
+        $base_url = 'https://basicdemo.k-hub.ac/uploads/student/';
+        $student->photo = $base_url . $student->photo;
+        
+        // Check if the student exists
+        if (!$student) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Student not found.',
+            ], 404);
+        }
+        
+        // Handle the post image upload
+        if ($request->hasFile('post_image')) {
+            $postImage = $request->file('post_image');
+            $postImageName = time() . '_' . $postImage->getClientOriginalName();
+            $postImage->move(public_path('posts'), $postImageName);
+    
+            // Construct the base URL for the image
+            $base_url = 'https://basicdemo.k-hub.ac/posts/';  // Assuming your image is uploaded to the public/posts directory
+            $postImageUrl = $base_url . $postImageName;
+        } else {
+            $postImageUrl = null;  // If no image is uploaded, set it to null
+        }
+    
+        // Proceed with storing the post data
+        $posts = Post::create([ 
+            'student_id' => $student->id, // Using authenticated student's ID
+            'student_name' => $student->name, // Student's name from the authenticated user
+            'student_image' => $student->photo, // Student's photo from the authenticated user
+            'post_description' => $request->post_description ?? null, 
+            'post_image' => $postImageUrl,
+            'likes' => 0, // Initialize likes to 0
+        ]);
+    
+        // Return response with success message and the created post data
         return response()->json([
-            'message' => 'Fetched successfully',
-            'data' => $comments,
+            'message' => 'New post posted!',
+            'posts' => $posts,
         ], 200);
     }
-    
-    
-    
-    // store post
-//   public function storePost(Request $request)
-// {
-    
-//      $validator = Validator::make($request->all(), [
-//     'post_description' => 'required|string',
-//     'student_id' => 'required',
-//     ]);
- 
-//     if ($validator->fails()) {
-//         return response()->json([ 
-//             'success' => false, 
-//             'message' => $validator->errors(),
-//         ], 400);
-//     }
 
-//     $posts = Post::create([ 
-//         'student_id' => $request->student_id, 
-//         'student_name' => $request->student_name,
-//         'student_image' => $request->student_image, 
-//         'post_description' => $request->post_description ?? null, 
-//         'likes' =>0, // The comment text from the request
+
+
+    
+    // show All posts
+        // public function showPosts()
+        // {
+        //     $posts = Post::orderBy('created_at', 'desc')->get();
         
-//     ]);
+        //     return response()->json([
+        //         'success' => true,
+        //         'message' => 'Posts fetched successfully.',
+        //         'posts' => $posts,
+        //     ]);
+        // }
 
-//     return response()->json([
-//         'message' => 'New post posted!',
-//         'posts' => $posts
-//     ], 200);
-// }
-
-// public function storePost(Request $request)
-// {
-//     // Validate the input data
-//     $validator = Validator::make($request->all(), [
-//         'post_description' => 'required|string',
-//         'student_id' => 'required|exists:students,id',  // Ensuring student_id exists in the students table
-//     ]);
-
-//     if ($validator->fails()) {
-//         return response()->json([ 
-//             'success' => false, 
-//             'message' => $validator->errors(),
-//         ], 400);
-//     }
-
-//     // Find the student by student_id
-//     $student = Student::find($request->student_id);
-//     $base_url = 'https://basicdemo.k-hub.ac/uploads/student/';
-//     $student->photo = $base_url . $student->photo;
-    
-//     // Check if the student exists
-//     if (!$student) {
-//         return response()->json([
-//             'success' => false,
-//             'message' => 'Student not found.',
-//         ], 404);
-//     }
-
-//     // Proceed with storing the post data
-//     $posts = Post::create([ 
-//         'student_id' => $student->id, // Using authenticated student's ID
-//         'student_name' => $student->name, // Student's name from the authenticated user
-//         'student_image' => $student->photo, // Student's photo from the authenticated user
-//         'post_description' => $request->post_description ?? null, // Post description from request
-//         'likes' => 0, // Initialize likes to 0
-//     ]);
-
-//     // Return response with success message and the created post data
-//     return response()->json([
-//         'message' => 'New post posted!',
-//         'posts' => $posts,
-//     ], 200);
-// }
-
-
-public function storePost(Request $request)
+// show All posts with likes count
+public function showPosts()
 {
-    // Validate the input data
-    $validator = Validator::make($request->all(), [
-        'post_description' => 'required|string',
-        'student_id' => 'required|exists:students,id', 
-        'post_image' => 'nullable|mimes:jpg,jpeg,png,webp,gif,bmp,tiff,svg|max:2048', // Allow multiple image formats with max 2MB size
+    $posts = Post::withCount('likes')->orderBy('created_at', 'desc')->get();
 
-    ]);
-
-    if ($validator->fails()) {
-        return response()->json([ 
-            'success' => false, 
-            'message' => $validator->errors(),
-        ], 400);
-    }
-
-    // Find the student by student_id
-    $student = Student::find($request->student_id);
-    $base_url = 'https://basicdemo.k-hub.ac/uploads/student/';
-    $student->photo = $base_url . $student->photo;
-    
-    // Check if the student exists
-    if (!$student) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Student not found.',
-        ], 404);
-    }
-    
-    // Handle the post image upload
-    if ($request->hasFile('post_image')) {
-        $postImage = $request->file('post_image');
-        $postImageName = time() . '_' . $postImage->getClientOriginalName();
-        $postImage->move(public_path('posts'), $postImageName);
-
-        // Construct the base URL for the image
-        $base_url = 'https://basicdemo.k-hub.ac/posts/';  // Assuming your image is uploaded to the public/posts directory
-        $postImageUrl = $base_url . $postImageName;
-    } else {
-        $postImageUrl = null;  // If no image is uploaded, set it to null
-    }
-
-    // Proceed with storing the post data
-    $posts = Post::create([ 
-        'student_id' => $student->id, // Using authenticated student's ID
-        'student_name' => $student->name, // Student's name from the authenticated user
-        'student_image' => $student->photo, // Student's photo from the authenticated user
-        'post_description' => $request->post_description ?? null, 
-        'post_image' => $postImageUrl,
-        'likes' => 0, // Initialize likes to 0
-    ]);
-
-    // Return response with success message and the created post data
     return response()->json([
-        'message' => 'New post posted!',
+        'success' => true,
+        'message' => 'Posts fetched successfully.',
         'posts' => $posts,
-    ], 200);
+    ]);
 }
 
 
+ // likes on posts 
+       public function likesOnPost(Request $request){
+              $validator = Validator::make($request->all(), [
+        'student_id' => 'required',
+        'post_id' => 'required',
+        
+        ]); 
+     
+        if ($validator->fails()) {
+            return response()->json([ 
+                'success' => false,
+                'message' => $validator->errors(),
+            ], 400);
+        }
+        $studentId = $request->student_id;
+    $postId = $request->post_id;
 
+    $post = Post::find($postId);
 
-// show All posts
-    public function showPosts()
-    {
-        $posts = Post::orderBy('created_at', 'desc')->get();
-    
+    // Check if student already liked this post
+    $existingLike = \DB::table('post_likes')
+        ->where('student_id', $studentId)
+        ->where('post_id', $postId)
+        ->first();
+
+    if ($existingLike) {
+        // Unlike
+        \DB::table('post_likes')
+            ->where('student_id', $studentId)
+            ->where('post_id', $postId)
+            ->delete();
+
+        $post->decrement('likes');
+
         return response()->json([
             'success' => true,
-            'message' => 'Posts fetched successfully.',
-            'posts' => $posts,
+            'message' => 'Like removed successfully',
+            'likes_count' => $post->likes
+        ]);
+    } else {
+        // Like
+        \DB::table('post_likes')->insert([
+            'student_id' => $studentId,
+            'post_id' => $postId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $post->increment('likes');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Like added successfully',
+            'likes_count' => $post->likes
         ]);
     }
+    
+       }
+   
+
+
+
+
+
 }
 
 
 
 *********** in api.php ******************
-   // store post
+   
+    // store post
     Route::post('/store-post', [CommentController::class, 'storePost']); 
     
     // show all posts
@@ -371,4 +430,8 @@ public function storePost(Request $request)
     
     // display specific post comments
     Route::get('/display-specific-post-comments/{postId}', [CommentController::class, 'displayComments']); 
+    
+    
+    // likes
+    Route::post('/likes', [CommentController::class, 'likesOnPost']);
 
